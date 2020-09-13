@@ -102,6 +102,8 @@ class Main(object):
         self.console.run()
 
     def _mumbleTextMessageCallback(self, sender, message):
+        if sender == self.mblcfg.nick:
+            return
         line = "mumble: " + sender + ": " + message
         self.console.sendTextMessage(line)
         self.irc.sendTextMessage(line)
@@ -110,6 +112,8 @@ class Main(object):
             self.mumble.stop()
 
     def _ircTextMessageCallback(self, sender, message):
+        if sender == self.irccfg.nick:
+            return
         line = "irc: " + sender + ": " + message
         self.console.sendTextMessage(line)
         self.mumble.sendTextMessage(line)
