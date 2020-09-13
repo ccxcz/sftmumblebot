@@ -12,14 +12,14 @@ import sftbot
 
 
 IRCConfig = namedtuple("IRCConfig", (
-    'ircservername',
-    'ircport',
-    'ircnick',
-    'ircchannel',
-    'ircpassword',
-    'ircauthtype',
-    'ircencoding',
-    'ircloglevel',
+    'servername',
+    'port',
+    'nick',
+    'channel',
+    'password',
+    'authtype',
+    'encoding',
+    'loglevel',
 ))
 MumbleConfig = namedtuple("MumbleConfig", (
     'servername',
