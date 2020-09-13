@@ -1,12 +1,34 @@
 #!/usr/bin/env python2
 import sys
+import os.path
+import time
+from functools import namedtuple
+
 import MumbleConnection
 import IRCConnection
 import ConsoleConnection
-import time
 import ConfigParser
-import os.path
 import sftbot
+
+
+IRCConfig = namedtuple("IRCConfig", (
+    'ircservername',
+    'ircport',
+    'ircnick',
+    'ircchannel',
+    'ircpassword',
+    'ircauthtype',
+    'ircencoding',
+    'ircloglevel',
+))
+MumbleConfig = namedtuple("MumbleConfig", (
+    'servername',
+    'port',
+    'nick',
+    'channel',
+    'password',
+    'loglevel',
+))
 
 irc = None
 mumble = None
@@ -110,44 +132,50 @@ def main():
     cparser.read(conffile)
 
     # configuration for the mumble connection
-    mblservername = cparser.get('mumble', 'server')
-    mblport = int(cparser.get('mumble', 'port'))
-    mblnick = cparser.get('mumble', 'nickname')
-    mblchannel = cparser.get('mumble', 'channel')
-    mblpassword = cparser.get('mumble', 'password')
-    mblloglevel = int(cparser.get('mumble', 'loglevel'))
+    mblcfg = MumbleConfig(
+        servername=cparser.get('mumble', 'server'),
+        port=int(cparser.get('mumble', 'port')),
+        nick=cparser.get('mumble', 'nickname'),
+        channel=cparser.get('mumble', 'channel'),
+        password=cparser.get('mumble', 'password'),
+        loglevel=int(cparser.get('mumble', 'loglevel')),
+    )
 
     # configuration for the IRC connection
-    ircservername = cparser.get('irc', 'server')
-    ircport = int(cparser.get('irc', 'port'))
-    ircnick = cparser.get('irc', 'nickname')
-    ircchannel = cparser.get('irc', 'channel')
-    ircpassword = cparser.get('irc', 'password', '')
-    ircauthtype = cparser.get('irc', 'authtype')
-    ircencoding = cparser.get('irc', 'encoding')
-    ircloglevel = int(cparser.get('irc', 'loglevel'))
+    irccfg = IRCConfig(
+        servername=cparser.get('irc', 'server'),
+        port=int(cparser.get('irc', 'port')),
+        nick=cparser.get('irc', 'nickname'),
+        channel=cparser.get('irc', 'channel'),
+        password=cparser.get('irc', 'password', ''),
+        authtype=cparser.get('irc', 'authtype'),
+        encoding=cparser.get('irc', 'encoding'),
+        loglevel=int(cparser.get('irc', 'loglevel')),
+    )
 
     # create server connections
     # hostname, port, nickname, channel, password, name, loglevel
     mumble = MumbleConnection.MumbleConnection(
-        mblservername,
-        mblport,
-        mblnick,
-        mblchannel,
-        mblpassword,
+        mblcfg.servername,
+        mblcfg.port,
+        mblcfg.nick,
+        mblcfg.channel,
+        mblcfg.password,
         "mumble",
-        mblloglevel)
+        mblcfg.loglevel,
+    )
 
     irc = IRCConnection.IRCConnection(
-        ircservername,
-        ircport,
-        ircnick,
-        ircchannel,
-        ircpassword,
-        ircauthtype,
-        ircencoding,
+        irccfg.servername,
+        irccfg.port,
+        irccfg.nick,
+        irccfg.channel,
+        irccfg.password,
+        irccfg.authtype,
+        irccfg.encoding,
         "irc",
-        ircloglevel)
+        irccfg.loglevel,
+    )
 
     console = ConsoleConnection.ConsoleConnection(
         "utf-8",
