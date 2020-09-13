@@ -29,82 +29,136 @@ MumbleConfig = namedtuple("MumbleConfig", (
     'password',
     'loglevel',
 ))
-
-irc = None
-mumble = None
-console = None
-
-
-def mumbleTextMessageCallback(sender, message):
-    line = "mumble: " + sender + ": " + message
-    console.sendTextMessage(line)
-    irc.sendTextMessage(line)
-    if(message == 'gtfo'):
-        mumble.sendTextMessage("KAY CU")
-        mumble.stop()
+ConsoleConfig = namedtuple("ConsoleConfig", (
+    'loglevel',
+))
 
 
-def ircTextMessageCallback(sender, message):
-    line = "irc: " + sender + ": " + message
-    console.sendTextMessage(line)
-    mumble.sendTextMessage(line)
-    if (message == 'gtfo'):
-        irc.sendTextMessage("KAY CU")
-        irc.stop()
+class Main(object):
+    def __init__(self, mblcfg, irccfg, concfg):
+        """Bridge between irc, mumble and console."""
+        self.mblcfg = mblcfg
+        self.irccfg = irccfg
+        self.concfg = concfg
 
+        # create server connections
+        # hostname, port, nickname, channel, password, name, loglevel
+        self.mumble = MumbleConnection.MumbleConnection(
+            mblcfg.servername,
+            mblcfg.port,
+            mblcfg.nick,
+            mblcfg.channel,
+            mblcfg.password,
+            "mumble",
+            mblcfg.loglevel,
+        )
 
-def consoleTextMessageCallback(sender, message):
-    line = "console: " + message
-    irc.sendTextMessage(line)
-    mumble.sendTextMessage(line)
+        self.irc = IRCConnection.IRCConnection(
+            irccfg.servername,
+            irccfg.port,
+            irccfg.nick,
+            irccfg.channel,
+            irccfg.password,
+            irccfg.authtype,
+            irccfg.encoding,
+            "irc",
+            irccfg.loglevel,
+        )
 
+        self.console = ConsoleConnection.ConsoleConnection(
+            "utf-8",
+            "console",
+            concfg.loglevel,
+        )
 
-def mumbleConnected():
-    irc.setAway()
+        # register text callback functions
+        self.mumble.registerTextCallback(self._mumbleTextMessageCallback)
+        self.irc.registerTextCallback(self._ircTextMessageCallback)
+        self.console.registerTextCallback(self._consoleTextMessageCallback)
 
+        # register connection-established callback functions
+        self.mumble.registerConnectionEstablishedCallback(
+            self._mumbleConnected
+        )
+        self.irc.registerConnectionEstablishedCallback(self._ircConnected)
 
-def mumbleDisconnected():
-    line = "connection to mumble lost. reconnect in 5 seconds."
-    console.sendTextMessage(line)
-    irc.setAway(line)
-    time.sleep(5)
-    mumble.start()
+        # register connection-lost callback functions
+        self.irc.registerConnectionLostCallback(self._ircDisconnected)
+        self.mumble.registerConnectionLostCallback(self._mumbleDisconnected)
 
+        # register connection-failed callback functions
+        self.irc.registerConnectionFailedCallback(self._ircConnectionFailed)
+        self.mumble.registerConnectionFailedCallback(
+            self._mumbleConnectionFailed
+        )
 
-def mumbleConnectionFailed():
-    line = "connection to mumble failed. retrying in 15 seconds."
-    console.sendTextMessage(line)
-    irc.setAway(line)
-    time.sleep(15)
-    mumble.start()
+    def start(self):
+        # start the connections.
+        # they will be self-sustaining due to the callback functions.
+        self.mumble.start()
+        self.irc.start()
 
+        # start the console connection, outside a thread (as main loop)
+        self.console.run()
 
-def ircConnected():
-    mumble.setComment()
+    def _mumbleTextMessageCallback(self, sender, message):
+        line = "mumble: " + sender + ": " + message
+        self.console.sendTextMessage(line)
+        self.irc.sendTextMessage(line)
+        if(message == 'gtfo'):
+            self.mumble.sendTextMessage("KAY CU")
+            self.mumble.stop()
 
+    def _ircTextMessageCallback(self, sender, message):
+        line = "irc: " + sender + ": " + message
+        self.console.sendTextMessage(line)
+        self.mumble.sendTextMessage(line)
+        if (message == 'gtfo'):
+            self.irc.sendTextMessage("KAY CU")
+            self.irc.stop()
 
-def ircDisconnected():
-    line = "connection to irc lost. reconnect in 15 seconds."
-    console.sendTextMessage(line)
-    mumble.setComment(line)
-    time.sleep(15)
-    irc.start()
+    def _consoleTextMessageCallback(self, sender, message):
+        line = "console: " + message
+        self.irc.sendTextMessage(line)
+        self.mumble.sendTextMessage(line)
 
+    def _mumbleConnected(self):
+        self.irc.setAway()
 
-def ircConnectionFailed():
-    line = "connection to irc failed. retrying in 15 seconds."
-    console.sendTextMessage(line)
-    mumble.setComment(line)
-    time.sleep(15)
-    irc.start()
+    def _mumbleDisconnected(self):
+        line = "connection to mumble lost. reconnect in 5 seconds."
+        self.console.sendTextMessage(line)
+        self.irc.setAway(line)
+        time.sleep(5)
+        self.mumble.start()
+
+    def _mumbleConnectionFailed(self):
+        line = "connection to mumble failed. retrying in 15 seconds."
+        self.console.sendTextMessage(line)
+        self.irc.setAway(line)
+        time.sleep(15)
+        self.mumble.start()
+
+    def _ircConnected(self):
+        self.mumble.setComment()
+
+    def _ircDisconnected(self):
+        line = "connection to irc lost. reconnect in 15 seconds."
+        self.console.sendTextMessage(line)
+        self.mumble.setComment(line)
+        time.sleep(15)
+        self.irc.start()
+
+    def _ircConnectionFailed(self):
+        line = "connection to irc failed. retrying in 15 seconds."
+        self.console.sendTextMessage(line)
+        self.mumble.setComment(line)
+        time.sleep(15)
+        self.irc.start()
 
 
 def main():
     print("sft mumble bot " + sftbot.VERSION)
-
-    global mumble
-    global irc
-    global console
 
     loglevel = 3
 
@@ -153,59 +207,15 @@ def main():
         loglevel=int(cparser.get('irc', 'loglevel')),
     )
 
-    # create server connections
-    # hostname, port, nickname, channel, password, name, loglevel
-    mumble = MumbleConnection.MumbleConnection(
-        mblcfg.servername,
-        mblcfg.port,
-        mblcfg.nick,
-        mblcfg.channel,
-        mblcfg.password,
-        "mumble",
-        mblcfg.loglevel,
+    concfg = ConsoleConfig(loglevel=loglevel)
+
+    bridge = Main(
+        mblcfg=mblcfg,
+        irccfg=irccfg,
+        concfg=concfg,
     )
 
-    irc = IRCConnection.IRCConnection(
-        irccfg.servername,
-        irccfg.port,
-        irccfg.nick,
-        irccfg.channel,
-        irccfg.password,
-        irccfg.authtype,
-        irccfg.encoding,
-        "irc",
-        irccfg.loglevel,
-    )
-
-    console = ConsoleConnection.ConsoleConnection(
-        "utf-8",
-        "console",
-        loglevel)
-
-    # register text callback functions
-    mumble.registerTextCallback(mumbleTextMessageCallback)
-    irc.registerTextCallback(ircTextMessageCallback)
-    console.registerTextCallback(consoleTextMessageCallback)
-
-    # register connection-established callback functions
-    mumble.registerConnectionEstablishedCallback(mumbleConnected)
-    irc.registerConnectionEstablishedCallback(ircConnected)
-
-    # register connection-lost callback functions
-    irc.registerConnectionLostCallback(ircDisconnected)
-    mumble.registerConnectionLostCallback(mumbleDisconnected)
-
-    # register connection-failed callback functions
-    irc.registerConnectionFailedCallback(ircConnectionFailed)
-    mumble.registerConnectionFailedCallback(mumbleConnectionFailed)
-
-    # start the connections.
-    # they will be self-sustaining due to the callback functions.
-    mumble.start()
-    irc.start()
-
-    # start the console connection, outside a thread (as main loop)
-    console.run()
+    bridge.start()
 
 
 if __name__ == "__main__":
