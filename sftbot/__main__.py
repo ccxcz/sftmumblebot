@@ -2,7 +2,7 @@
 import sys
 import os.path
 import time
-from functools import namedtuple
+from collections import namedtuple
 
 import MumbleConnection
 import IRCConnection
