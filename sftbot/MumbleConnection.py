@@ -7,6 +7,8 @@ import ssl
 import platform
 import struct
 import thread
+from cgi import escape
+
 import sftbot.protobuf.Mumble_pb2 as pb2
 
 messageTypes = {
@@ -214,6 +216,7 @@ class MumbleConnection(AbstractConnection.AbstractConnection):
         """
         send message as a TextMessage.
         """
+        message = escape(message)
         pbMess = pb2.TextMessage()
         pbMess.session.append(self._session)
         pbMess.channel_id.append(self._channelId)
