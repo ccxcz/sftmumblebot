@@ -38,9 +38,15 @@ class ConsoleConnection(AbstractConnection.AbstractConnection):
         """
         try:
             line = sys.stdin.readline()
+            if not line:
+	        self._log("stdin EOF", 1)
+                return False
+            if not line.strip():
+                # ignore empty / whitespace-only lines
+                return True
         except KeyboardInterrupt:
             self._log("keyboard interrupt", 1)
-            self._invokeTextCallback("console", "Goodbye.")
+            # self._invokeTextCallback("console", "Goodbye.")
             return False
 
         line = util.try_decode(line, self._encoding)
@@ -53,6 +59,7 @@ class ConsoleConnection(AbstractConnection.AbstractConnection):
         write the message to stdout
         """
         print(util.try_encode(message, self._encoding))
+        sys.stdout.flush()
         return True
 
     # pass the given line to _sendMessage.
