@@ -37,7 +37,7 @@ for k, v in messageTypes.items():
 class MumbleConnection(AbstractConnection.AbstractConnection):
 
     # call the superconstructor and set global configuration variables.
-    def __init__(self, hostname, port, nickname, channel, password, name,
+    def __init__(self, hostname, port, nickname, channel, password, tokens, name,
                  loglevel):
         super(MumbleConnection, self).__init__(name, loglevel)
         self._hostname = hostname
@@ -45,6 +45,7 @@ class MumbleConnection(AbstractConnection.AbstractConnection):
         self._nickname = nickname
         self._channel = channel
         self._password = password
+        self._tokens = tokens
 
         # channel id lookup table
         self._channelIds = {}
@@ -102,6 +103,8 @@ class MumbleConnection(AbstractConnection.AbstractConnection):
         pbMess.username = self._nickname
         if self._password is not None:
             pbMess.password = self._password
+        if self._tokens:
+            map(pbMess.tokens.append, self._tokens)
         pbMess.opus = True
         if not self._sendMessage(pbMess):
             raise Exception("couldn't send auth package", 0)

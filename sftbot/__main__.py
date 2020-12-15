@@ -3,6 +3,7 @@ import sys
 import os.path
 import time
 from collections import namedtuple
+from functools import partial
 
 import MumbleConnection
 import IRCConnection
@@ -27,11 +28,16 @@ MumbleConfig = namedtuple("MumbleConfig", (
     'nick',
     'channel',
     'password',
+    'tokens',
     'loglevel',
 ))
 ConsoleConfig = namedtuple("ConsoleConfig", (
     'loglevel',
 ))
+
+
+def fmt_message(origin, sender, message):
+    return '<%s@%s> %s' % (sender, origin, message)
 
 
 class Main(object):
@@ -44,13 +50,14 @@ class Main(object):
         # create server connections
         # hostname, port, nickname, channel, password, name, loglevel
         self.mumble = MumbleConnection.MumbleConnection(
-            mblcfg.servername,
-            mblcfg.port,
-            mblcfg.nick,
-            mblcfg.channel,
-            mblcfg.password,
-            "mumble",
-            mblcfg.loglevel,
+            hostname=mblcfg.servername,
+            port=mblcfg.port,
+            nickname=mblcfg.nick,
+            channel=mblcfg.channel,
+            password=mblcfg.password,
+            tokens=mblcfg.tokens,
+            name="mumble",
+            loglevel=mblcfg.loglevel,
         )
 
         self.irc = IRCConnection.IRCConnection(
@@ -104,25 +111,25 @@ class Main(object):
     def _mumbleTextMessageCallback(self, sender, message):
         if sender == self.mblcfg.nick:
             return
-        line = "mumble: " + sender + ": " + message
+        line = fmt_message("mumble", sender, message)
         self.console.sendTextMessage(line)
         self.irc.sendTextMessage(line)
-        if(message == 'gtfo'):
-            self.mumble.sendTextMessage("KAY CU")
-            self.mumble.stop()
+        # if(message == 'gtfo'):
+        #     self.mumble.sendTextMessage("KAY CU")
+        #     self.mumble.stop()
 
     def _ircTextMessageCallback(self, sender, message):
         if sender == self.irccfg.nick:
             return
-        line = "irc: " + sender + ": " + message
+        line = fmt_message("irc", sender, message)
         self.console.sendTextMessage(line)
         self.mumble.sendTextMessage(line)
-        if (message == 'gtfo'):
-            self.irc.sendTextMessage("KAY CU")
-            self.irc.stop()
+        # if (message == 'gtfo'):
+        #     self.irc.sendTextMessage("KAY CU")
+        #     self.irc.stop()
 
     def _consoleTextMessageCallback(self, sender, message):
-        line = "console: " + message
+        line = fmt_message("cmd", sender, message)
         self.irc.sendTextMessage(line)
         self.mumble.sendTextMessage(line)
 
@@ -189,26 +196,38 @@ def main():
     cparser = ConfigParser.ConfigParser()
     cparser.read(conffile)
 
+    def get(section, key, convert=None, **kwargs):
+        if 'default' in kwargs:
+            if not cparser.has_option(section, key):
+                return kwargs['default']
+            elif convert is None:
+                convert = type(kwargs['default'])
+        value = cparser.get(section, key)
+        return value if convert is None else convert(value)
+
     # configuration for the mumble connection
+    mblget = partial(get, 'mumble')
     mblcfg = MumbleConfig(
-        servername=cparser.get('mumble', 'server'),
-        port=int(cparser.get('mumble', 'port')),
-        nick=cparser.get('mumble', 'nickname'),
-        channel=cparser.get('mumble', 'channel'),
-        password=cparser.get('mumble', 'password'),
-        loglevel=int(cparser.get('mumble', 'loglevel')),
+        servername=mblget('server'),
+        port=mblget('port', default=64738),
+        nick=mblget('nickname'),
+        channel=mblget('channel'),
+        password=mblget('password', default=''),
+        tokens=mblget('tokens', default='').split(','),
+        loglevel=mblget('loglevel', default=1),
     )
 
     # configuration for the IRC connection
+    ircget = partial(get, 'irc')
     irccfg = IRCConfig(
-        servername=cparser.get('irc', 'server'),
-        port=int(cparser.get('irc', 'port')),
-        nick=cparser.get('irc', 'nickname'),
-        channel=cparser.get('irc', 'channel'),
-        password=cparser.get('irc', 'password', ''),
-        authtype=cparser.get('irc', 'authtype'),
-        encoding=cparser.get('irc', 'encoding'),
-        loglevel=int(cparser.get('irc', 'loglevel')),
+        servername=ircget('server'),
+        port=ircget('port', default=6667),
+        nick=ircget('nickname'),
+        channel=ircget('channel'),
+        password=ircget('password', default=''),
+        authtype=ircget('authtype', default='none'),
+        encoding=ircget('encoding', default='utf-8'),
+        loglevel=ircget('loglevel', default=1),
     )
 
     concfg = ConsoleConfig(loglevel=loglevel)
